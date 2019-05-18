@@ -1,0 +1,25 @@
+{
+  "environment": "web",
+  "source": "1BX3vw1rKpPrXuycpm6mvmgcdsZe-86IK15MlmNq7NHk",
+  "format": "html",
+  "prefix": "../",
+  "mainga": "UA-49880327-14",
+  "updated": "2019-05-18T13:08:47Z",
+  "id": "kubernetes_introduction",
+  "duration": 0,
+  "title": "Kubernetes入門",
+  "author": "@Spring_MT",
+  "summary": "minikubeを使ってkubernetesに慣れよう",
+  "theme": "infra",
+  "status": [
+    "draft"
+  ],
+  "category": [
+    "infra"
+  ],
+  "tags": [
+    "kubernetes"
+  ],
+  "feedback": "https://github.com/SpringMT/kubernetes_introduction",
+  "url": "kubernetes_introduction"
+}

@@ -1,0 +1,625 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Kubernetes入門</title>
+  <script src="../bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="../elements/codelab.html">
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <style is="custom-style">
+    body {
+      font-family: "Roboto",sans-serif;
+      background: var(--google-codelab-background, #F8F9FA);
+    }
+  </style>
+  
+</head>
+<body unresolved class="fullbleed">
+
+  <google-codelab title="Kubernetes入門"
+                  environment="web"
+                  feedback-link="https://github.com/SpringMT/kubernetes_introduction">
+    
+      <google-codelab-step label="Introduction" duration="0">
+        <p>kubernetesはいろいろあって難しい感じもしますが、手を動かせば理解も進むと思います。</p>
+<p>なので、手を動かしてみましょう。</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="準備の準備" duration="0">
+        <p>本当だったらGKEとかを使ってみたいところですが、お金もかかるのでローカルでkubernetesを動かせる<a href="https://github.com/kubernetes/minikube" target="_blank">minikube</a>を使います。</p>
+<p>minikubeは一つのノードで動くkubernetesクラスタを起動させます。</p>
+<p>さて、ここでもうすでにkubernetesの単語がいろいろでてきていて混乱し始めるところでしょう。</p>
+<p>まずはでてくるkubernetes用語を少し整理します。</p>
+<h2>用語の整理</h2>
+<p>用語の一覧は下記にまとまっています。</p>
+<p><a href="https://kubernetes.io/docs/reference/glossary/" target="_blank">https://kubernetes.io/docs/reference/glossary/</a></p>
+<p>さらに <code>kubectl explain</code> コマンドでも詳細を知ることができます。</p>
+<p>ただ、このページを読むだけだとわけわからんと思うので、これから関係ありそうな用語を抜き出して簡単にしてまとめます。</p>
+<h3><a href="https://kubernetes.io/docs/reference/glossary/?all=true#term-cluster" target="_blank">クラスタ(cluster)</a></h3>
+<ul>
+<li>kubernetesによって管理されているノードの集合。</li>
+<li>クラスタにはワーカーノードと一つ以上のマスターノードが含まれる。</li>
+</ul>
+<h3><a href="https://kubernetes.io/docs/reference/glossary/?all=true#term-node" target="_blank">ノード(node)</a></h3>
+<ul>
+<li>ノードはkubernetesのワーカーマシンで、VMまたは物理マシンが使われます(クラスタによって変わります)</li>
+<li>ノードはマスターコンポーネントによって管理されます。</li>
+<li>ノードはPodを実行するために必要なコンポーネントが動いています。ノード上のコンポーネントには、コンテナのruntime(Dockerとかcontainerdとか)、kubelet、kube-proxyがあります。</li>
+<li>つまり、ノード上でPodが動きます。</li>
+</ul>
+<h3><a href="https://kubernetes.io/docs/reference/glossary/?all=true#term-pod" target="_blank">Pod</a></h3>
+<ul>
+<li>kubernetesの中において、最も小さく単純な単位です。</li>
+<li>Podには一つ以上のコンテナが含まれています。コンテナは必ず同じノードに配置されます</li>
+<li>Podに含まれるコンテナ同士はネットワーク的には隔離されておらず(NICを共有)、含まれるコンテナは同じIPアドレスを持ちます。あと隔離されていないので、 <code>localhost</code> を使ってやりとりできます。</li>
+<li>Podに含まれるコンテナ同士はストレージを共有します。</li>
+<li>Podは多くの場合一つのコンテナを内包していますが、複数コンテナを含めることもできます。(ここらへんはサイドカーパターンとかアンバサダーパターンとか呼ばれるやつ)</li>
+<li>Podはだいたいデプロイメントを使って管理します</li>
+</ul>
+<h3><a href="https://kubernetes.io/docs/reference/glossary/?all=true#term-service" target="_blank">サービス(service)</a></h3>
+<ul>
+<li><a href="https://kubernetes.io/docs/concepts/services-networking/service/" target="_blank">https://kubernetes.io/docs/concepts/services-networking/service/</a> こちらも参照</li>
+<li>アプリケーションを具現化しているPod群へのアクセスするための方法を示すAPIオブジェクトです</li>
+<li>クラスタの内部、外部どちらでもアクセスアクセス元を定義できます。</li>
+<li>アクセス先のまとまりの定義にはLabelを使います。</li>
+<li>負荷分散の仕組みや、ネットワークの設定もできます。(負荷分散の仕組みはややこしくなるので別の機会に)</li>
+<li>kubernetesのコンテキスト上でサービスと言われるとこちらを指します。ややこしい</li>
+</ul>
+<h3><a href="https://kubernetes.io/docs/concepts/overview/components/" target="_blank">マスターコンポーネントとノードコンポーネント</a></h3>
+<ul>
+<li>マスターコンポーネントはクラスターの管理に必要なもの</li>
+<li>ノードコンポーネントは実行中のPodを維持しkubernetesのランタイム環境を提供するもの</li>
+</ul>
+<p>ここまできたら実際に手を動かしてみましょう。</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="準備" duration="0">
+        <p>macを使っている前提で話を進めます。</p>
+<p>下記のリンクの手順をほぼそのまま使っています。</p>
+<p><a href="https://kubernetes.io/docs/tasks/tools/install-minikube/" target="_blank">https://kubernetes.io/docs/tasks/tools/install-minikube/</a></p>
+<h2>Hypervisorのインストール</h2>
+<p><a href="https://ja.wikipedia.org/wiki/%E3%83%8F%E3%82%A4%E3%83%91%E3%83%BC%E3%83%90%E3%82%A4%E3%82%B6" target="_blank">Hypervisor</a>とは？</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p>VirtualBox</p>
+</td><td colspan="1" rowspan="1"><p><a href="https://www.virtualbox.org/wiki/Downloads" target="_blank">https://www.virtualbox.org/wiki/Downloads</a></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>VMware Fusion </p>
+</td><td colspan="1" rowspan="1"><p><a href="https://www.vmware.com/products/fusion" target="_blank">https://www.vmware.com/products/fusion</a></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Hyperkit</p>
+</td><td colspan="1" rowspan="1"><p><a href="https://github.com/moby/hyperkit" target="_blank">https://github.com/moby/hyperkit</a></p>
+</td></tr>
+</table>
+<p>ちなみに自分はVirtualBoxを使っています。</p>
+<h2>minikubeのインストール</h2>
+<p>brew経由でインストールできます</p>
+<pre>% brew cask install minikube</pre>
+<h2>kubectlのインストール</h2>
+<p>gcloud SDK 237.0.0によってkubectlの管理が前に比べて劇的によくなりました。</p>
+<p>kubectlのバージョンはv1.11.7になり、さらに、複数のkubectlのバージョンも含まれるようになりました。(<code>kubectl.1.9</code> <code>kubectl.1.10</code> <code>kubectl.1.11</code> <code>kubectl.1.12</code> <code>kubectl.1.13</code> というコマンドが含まれるようになりました。) </p>
+<p>もうbrewに頼る必要はないのです！</p>
+<h3>インストール方法</h3>
+<p>下記に従ってgcloud SDKをインストールしましょう。</p>
+<p><a href="https://cloud.google.com/sdk/docs/quickstart-macos?hl=en" target="_blank">https://cloud.google.com/sdk/docs/quickstart-macos?hl=en</a></p>
+<p>gcloud SDKがインストールできればgcloudコマンドが使えるようになっていると思うので、gcloudコマンド経由でkubectlをインストールしましょう。</p>
+<pre>% gcloud components install kubectl
+% kubectl version
+Client Version: version.Info{Major:&#34;1&#34;, Minor:&#34;11&#34;, GitVersion:&#34;v1.11.7&#34;, GitCommit:&#34;65ecaf0671341311ce6aea0edab46ee69f65d59e&#34;, GitTreeState:&#34;clean&#34;, BuildDate:&#34;2019-01-24T19:32:00Z&#34;, GoVersion:&#34;go1.10.7&#34;, Compiler:&#34;gc&#34;, Platform:&#34;darwin/amd64&#34;}
+Server Version: version.Info{Major:&#34;1&#34;, Minor:&#34;13&#34;, GitVersion:&#34;v1.13.3&#34;, GitCommit:&#34;721bfa751924da8d1680787490c54b9179b1fed0&#34;, GitTreeState:&#34;clean&#34;, BuildDate:&#34;2019-02-01T20:00:57Z&#34;, GoVersion:&#34;go1.11.5&#34;, Compiler:&#34;gc&#34;, Platform:&#34;linux/amd64&#34;}</pre>
+<p>楽な時代になったものだ。</p>
+<h2><a href="https://github.com/ahmetb/kubectx" target="_blank">kubectx</a>のインストール</h2>
+<p>クラスターの切り替えが楽になるのでいれておくとよいかと思います。</p>
+<pre>% brew install kubectx</pre>
+<h2>sternのインストール</h2>
+<p>sternはkubernetesのログを見るためには便利なツールなのでインストールしておきましょう。</p>
+<p>brew経由でインストールできます。</p>
+<pre>% brew install stern</pre>
+<p>ここまでくれば準備はOKだと思います。</p>
+<p>それでは実際にminikubeを起動させてkubernetesの世界に入ってみましょう</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="minikubeの起動" duration="0">
+        <pre>% minikube start</pre>
+<p>動かなかった場合の対応</p>
+<p>自分の場合は <code>Error restarting cluster: restarting kube-proxy: waiting for kube-proxy to be up for configmap update: timed out waiting for the condition がでて、下記の用に対応しました。</code></p>
+<pre># とりあえず潰しても問題なさそうであれば
+% minikube delete
+% minikube start
+# 動いた！</pre>
+<p>minikubeが起動できてたら、kubernetesを触る準備は万全です。</p>
+<p>kubectxを使ってどのクラスタを操作しているかを確認しましょう！</p>
+<p>minikube起動直後では、minikubeクラスタが指定されていると思います。</p>
+<pre>% kubectx
+minikube</pre>
+<p>特にまだなにもしていないので、Podとかも上がってないです。</p>
+<p>ノードはいます。</p>
+<pre>% kubectl get nodes
+NAME       STATUS    ROLES     AGE       VERSION
+minikube   Ready     master    42m       v1.13.3
+% kubectl get pods
+No resources found.</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Podを立ててみる" duration="0">
+        <p>kubernetesのサンプルのマニフェストファイルは<a href="https://github.dena.jp/KubernetesFriday/nouhau" target="_blank">kubernetes_introduction</a>においておきました。</p>
+<p>cloneして使います。</p>
+<pre>% git clone https://github.com/SpringMT/kubernetes_introduction.git
+% cd kubernetes_introduction/manifests</pre>
+<p>ではPodを作ってみましょう。</p>
+<p><code>kubectl apply</code> コマンドを使います。</p>
+<p>事前に <code>kubectx</code> でクラスタがminikubeになっていることを確認しておいてください！</p>
+<pre>% kubectl apply -f step1/pod.yaml
+pod/introduction-web created
+% kubectl get pods
+NAME               READY     STATUS    RESTARTS   AGE
+introduction-web   1/1       Running   0          22s</pre>
+<p>おおお、無事立ち上がっています。</p>
+<p>Podの詳細も確認してみましょう。</p>
+<pre>% kubectl describe pods introduction-web
+Name:               introduction-web
+Namespace:          default
+Priority:           0
+PriorityClassName:  &lt;none&gt;
+Node:               minikube/10.0.2.15
+Start Time:         Tue, 05 Mar 2019 16:16:32 +0900
+Labels:             app=web
+Annotations:        kubectl.kubernetes.io/last-applied-configuration={&#34;apiVersion&#34;:&#34;v1&#34;,&#34;kind&#34;:&#34;Pod&#34;,&#34;metadata&#34;:{&#34;annotations&#34;:{},&#34;labels&#34;:{&#34;app&#34;:&#34;web&#34;},&#34;name&#34;:&#34;introduction-web&#34;,&#34;namespace&#34;:&#34;default&#34;},&#34;spec&#34;:{&#34;container...
+Status:             Running
+IP:                 172.17.0.6
+Containers:
+  web:
+    Container ID:   docker://828586eb578dade41a1ba49accabd7981e9ffe22086c67eef1a23356d41f6baa
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:e2048a115f51d61fa589f5f592f677300f1c122de07904e0ebefe44a6a89da23
+    Port:           &lt;none&gt;
+    Host Port:      &lt;none&gt;
+    State:          Running
+      Started:      Tue, 05 Mar 2019 16:16:50 +0900
+    Ready:          True
+    Restart Count:  0
+    Environment:    &lt;none&gt;
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-kgtlz (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  default-token-kgtlz:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-kgtlz
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  &lt;none&gt;
+Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  22m   default-scheduler  Successfully assigned default/introduction-web to minikube
+  Normal  Pulling    22m   kubelet, minikube  pulling image &#34;nginx&#34;
+  Normal  Pulled     22m   kubelet, minikube  Successfully pulled image &#34;nginx&#34;
+  Normal  Created    22m   kubelet, minikube  Created container
+  Normal  Started    22m   kubelet, minikube  Started container</pre>
+<p>いろいろでてきましたね。</p>
+<p>まあ、いまのところはスルーで大丈夫です。</p>
+<p><code>kubectl get</code> や <code>kubectl describe</code> の使い方を手になじませてください。</p>
+<p>sternを使ってログも確認してみましょう。</p>
+<p>sternは <code>tail -f</code> ぽくログを流してくれます。</p>
+<pre>% stern introduction
++ introduction-web › web</pre>
+<p>Podができているログくらいしか確認できないですが、ログがでていることもわかりました。</p>
+<p><code>kubectl logs introduction-web</code>  でもログは確認できます。(この場合なにもログはでてきません。ちなみに、 sternのように <code>tail -f</code> のようにログが流すことはできないです)</p>
+<aside class="special"><p>2019/03/06追記</p>
+<p>2019/2/26にmergeされた下記PRによって、できるようにラベルの指定の組み合わせで <code>tail -f</code> 相当にことができるようになっています。</p>
+<p><a href="https://github.com/kubernetes/kubernetes/pull/67573" target="_blank">https://github.com/kubernetes/kubernetes/pull/67573</a></p>
+<p><code>kubectl logs -l app=logging_test --all-containers -f こんな感じで指定できるぽいです。</code></p>
+</aside>
+<h3>dashboardを使ってみる</h3>
+<p>kuberenetesのdashboardでも確認してみましょう。</p>
+<p>kubernetesになれないうちはdashboardを使ってGUIで確認するとなにかと理解しやすいかと思います。</p>
+<p>ただし本番環境でdashboard機能をonにする場合は気をつけましょう。</p>
+<p>こんな事例もあります。</p>
+<p><a href="https://redlock.io/blog/cryptojacking-tesla" target="_blank">https://redlock.io/blog/cryptojacking-tesla</a></p>
+<p>GKEを使っている場合は、クラスタを作る際にdashboar機能をoffにする機能があるので(どフォルトoff)、これを使ってoffにするとよいかと思います。</p>
+<p><img style="max-width: 513.50px" src="img/f10a04bce42313fd.png"></p>
+<p>minikubeの場合は、 <code>minikube dashboard</code> コマンドを使います。</p>
+<pre>% minikube dashboard
+🔌  Enabling dashboard ...
+🤔  Verifying dashboard health ...
+🚀  Launching proxy ...
+🤔  Verifying proxy health ...
+🎉  Opening http://127.0.0.1:59459/api/v1/namespaces/kube-system/services/http:kubernetes-dashboard:/proxy/ in your default browser...</pre>
+<p>minikube以外の場合はこちらを参照ください。</p>
+<p><a href="https://github.com/kubernetes/dashboard" target="_blank">https://github.com/kubernetes/dashboard</a></p>
+<p>dashboardはこんな感じになっているかと思います。</p>
+<p><img style="max-width: 573.50px" src="img/8f6a7e8a4d31ed08.png"></p>
+<p><code>kubectl get</code> や <code>kubectl describe</code> で取得できる情報と同等の情報が確認できると思います。</p>
+<h3>Podを削除する</h3>
+<p>削除する方法は2つあります。</p>
+<pre>% kubectl delete pods introduction-web</pre>
+<p>or</p>
+<pre>% kubectl delete -f step1/pod.yaml</pre>
+<p>基本的にファイルを指定することで、もれなく削除できるので、ファイル指定をおすすめします。</p>
+<p>念の為削除されているか確認もしましょう</p>
+<pre>% kubectl get pods
+No resources found.</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="通信できるPodを作って通信してみる" duration="0">
+        <p>step1のマニフェストファイルを使うと、どこにもポートが空いていない状態なので、単純に上がっているだけのPodになります。</p>
+<p>では、通信できるPodを作ってみましょう。</p>
+<p>今度はstep2のディレクトリに含まれるマニフェストを使います。</p>
+<pre># kubectxでクラスタの確認を忘れずに！
+% kubectx
+% kubectl apply -f step2/pod.yaml
+pod/introduction-web created
+% kubectl get pods
+NAME               READY     STATUS    RESTARTS   AGE
+introduction-web   1/1       Running   0          76s</pre>
+<p>クラスタ内で80番ポートが空いているPodが上がります。</p>
+<p>このままでは、クラスタ外からはアクセスできません。</p>
+<p>アクセスできるようにするには、サービスを作る方法もありますが、サービス経由の設定はあとにまわして、今回は一旦特定のPodと通信できるようにできるようにプロキシする方法でアクセスしてみます。</p>
+<p>ローカルの8080番ポートでPodのアクセスするように設定して試してみます。</p>
+<pre>% kubectl port-forward introduction-web 8080:80
+Forwarding from 127.0.0.1:8080 -&gt; 80
+Forwarding from [::1]:8080 -&gt; 80</pre>
+<p>http://localhost:8080/にアクセスしてみましょう。</p>
+<p><img style="max-width: 619.50px" src="img/f0e05dcf4a2a34ad.png"></p>
+<p>ログも見てみましょう。</p>
+<pre>% stern introduction-web
++ introduction-web › web
+introduction-web web 127.0.0.1 - - [05/Mar/2019:09:04:26 +0000] &#34;GET / HTTP/1.1&#34; 200 612 &#34;-&#34; &#34;curl/7.54.0&#34; &#34;-&#34;
+introduction-web web 127.0.0.1 - - [05/Mar/2019:09:04:39 +0000] &#34;GET / HTTP/1.1&#34; 200 612 &#34;-&#34; &#34;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36&#34; &#34;-&#34;
+introduction-web web 2019/03/05 09:04:39 [error] 7#7: *2 open() &#34;/usr/share/nginx/html/favicon.ico&#34; failed (2: No such file or directory), client: 127.0.0.1, server: localhost, request: &#34;GET /favicon.ico HTTP/1.1&#34;, host: &#34;localhost:8080&#34;, referrer: &#34;http://localhost:8080/&#34;
+introduction-web web 127.0.0.1 - - [05/Mar/2019:09:04:39 +0000] &#34;GET /favicon.ico HTTP/1.1&#34; 404 555 &#34;http://localhost:8080/&#34; &#34;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36&#34; &#34;-&#34;</pre>
+<p>無事アクセスできました！</p>
+<p>Podが一つであればこれくらいでなんとかなりますが、現実はそんな訳ありません。</p>
+<p>1Podは今までの1プロセスに当たるくらいの最小の単位です。</p>
+<p>現実のアプリケーションを運用するには、複数の種類のPodまとめて管理する必要がでてきます。</p>
+<p>それを実現するのがReplicaSetとDeploymentです。</p>
+<p>次に行く前に立ち上げたPodをお掃除しておきましょう。</p>
+<pre>% kubectl delete -f step2/pod.yaml
+pod &#34;introduction-web&#34; deleted
+% kubectl get pods
+No resources found.</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="ReplicaSet" duration="0">
+        <p>ここからkubernetesぽくなってきます。</p>
+<p>ちょっとここでkuberenetesの強みについて少しお話します。</p>
+<p>今までのPodの立ち上げにおいて、書いているのはyamlのマニフェストファイルだけです。</p>
+<p>この記述内容は何が必要かだけを記載しているいわゆる宣言的なコードになっているかと思います。kubernetesはこの宣言的なコードによる管理ができることでシステムの構築や管理を自動化しやすいようにしています。kubernetesの強みの一つはこうした宣言的なコードによる管理ができる点にあります。</p>
+<p>もちろんkubernetesの強みはこれだけあるはずがありません。</p>
+<p>ここで、ReplicaSetの話に戻します。</p>
+<p>ReplicaSetはkubernetesの別の強みである、セルフヒーリングの機能を提供してくれます。</p>
+<p>ReplicaSetは実行されているPodの数を保証する仕組みです。</p>
+<p>ReplicaSetに定義されているPodのテンプレートを元にPodのレプリカ(複製)を指定された数に一致するように管理してくれます。</p>
+<p>では実際に試してみましょう。</p>
+<aside class="special"><p>kubernetesの強みについて</p>
+<p>kubernetesの強みはだいたい7つの項目になります(Kubernetes完全ガイドより)</p>
+<ul>
+<li>宣言的なコードによる管理(Infrastructure as Code, IaC)</li>
+<li>スケーリング・オートスケーリング</li>
+<li>スケジューリング</li>
+<li>リソース管理</li>
+<li>セルフヒーリング</li>
+<li>サービスディスカバリとロード・バランシング</li>
+<li>データ管理</li>
+</ul>
+<p>それぞれについては別の機会に紹介できればと思います。</p>
+</aside>
+<h2>ReplicaSetの作成</h2>
+<p>ではReplicaSetを作ってみましょう</p>
+<p>今回は3つのPodを上げます。</p>
+<pre># クラスタの確認を忘れずに！
+% kubectx
+% kubectl apply -f step3/replica_set.yaml
+replicaset.apps/intro-rs created
+% kubectl get pods
+NAME             READY     STATUS    RESTARTS   AGE
+intro-rs-2wqvw   1/1       Running   0          27s
+intro-rs-brllz   1/1       Running   0          27s
+intro-rs-mwdjv   1/1       Running   0          27s
+# 一個消してみる
+% kubectl delete pod intro-rs-2wqvw
+# すぐに3個になるようにPodができる
+% kubectl get pods
+NAME             READY     STATUS              RESTARTS   AGE
+intro-rs-7zhxh   0/1       ContainerCreating   0          4s # &lt;- New!!
+intro-rs-brllz   1/1       Running             0          2m1s
+intro-rs-mwdjv   1/1       Running             0          2m1s</pre>
+<p>Podが一時的に落ちてもすぐに新しいPodが出来上がる様子が伺えます。</p>
+<p>さて、ReplicaSetがPodのセルフヒーリングを提供してくれたわけですが、これによって耐障害性が上がり万々歳とはなりません。。</p>
+<p>ReplicaSetはあくまでPodのレプリカを作り指定された数ぶんのPodを立ち上げ続けられるように管理するだけです。</p>
+<p>ReplicaSet単位でのアップデートは提供してくれません。</p>
+<p>ReplicaSetやさらにはPodのアップデートを提供してくれる仕組みがDeploymentになります。</p>
+<p>次に行く前に立ち上げたReplicaSetをお掃除しておきましょう。</p>
+<pre>% kubectl delete -f step3/replica_set.yaml
+replicaset.apps &#34;intro-rs&#34; deleted
+% kubectl get pods
+No resources found.</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Deployment" duration="0">
+        <p>DeploymentはReplicaSetとPodのアップデートを担当します。</p>
+<p>DeploymentはReplocaSetを管理し、ReplicaSetがPodを作成したりします。</p>
+<p>実際はこのDeploymentを使うことがほとんどで、ReplicaSetやPodを直接マニフェストで定義すること滅多にありません。</p>
+<p>最初からこれを説明しろよ感がありますが、まあ、PodやReplicaSetを説明しないと分かりづらいと思ったのでここまで引っ張りました。</p>
+<p>DeploymentはReplicaSetによって管理されるPodの数を保ちながら、Podをアップデートする仕組みを提供しています。</p>
+<p>アップデートの方法の特徴してRollingUpdateがあります。</p>
+<p>新しいPodを一定数つくりながら、古いPodをその分だけ削除していく、効率よくアップデートを行う仕組みです。</p>
+<p>この仕組みを使ってBlue-Green-Deploymentも実現可能です。</p>
+<h2>Deploymentの作成</h2>
+<p>では実際にDeploymentを使ってみましょう。</p>
+<pre># クラスタの確認を忘れずに！
+% kubectx
+% kubectl apply -f step4/deployment.yaml
+deployment.apps/intro-deploy created
+% kubectl get pods
+NAME                            READY     STATUS    RESTARTS   AGE
+intro-deploy-78bd57c9c9-79trj   1/1       Running   0          12s
+intro-deploy-78bd57c9c9-99mzp   1/1       Running   0          12s
+intro-deploy-78bd57c9c9-l6sxw   1/1       Running   0          12s
+% kubectl get deploy
+NAME           READY     UP-TO-DATE   AVAILABLE   AGE
+intro-deploy   3/3       3            3           19s
+# 配布するimageのバージョンを変えてapplyしてみる
+% kubectl apply -f step4/deployment.yaml
+deployment.apps/intro-deploy configured
+% kubectl get deploy
+NAME           READY     UP-TO-DATE   AVAILABLE   AGE
+intro-deploy   2/3       3            2           92s
+# 入れ替え中
+% kubectl get pods
+NAME                            READY     STATUS              RESTARTS   AGE
+intro-deploy-5d77889745-9scnz   0/1       ContainerCreating   0          5s
+intro-deploy-5d77889745-jslth   0/1       ContainerCreating   0          5s
+intro-deploy-5d77889745-lnznf   0/1       ContainerCreating   0          5s
+intro-deploy-78bd57c9c9-79trj   1/1       Running             0          95s
+intro-deploy-78bd57c9c9-99mzp   1/1       Running             0          95s
+intro-deploy-78bd57c9c9-l6sxw   0/1       Terminating         0          95s
+# 入れ替え完了
+% kubectl get pods
+NAME                            READY     STATUS    RESTARTS   AGE
+intro-deploy-5d77889745-9scnz   1/1       Running   0          73s
+intro-deploy-5d77889745-jslth   1/1       Running   0          73s
+intro-deploy-5d77889745-lnznf   1/1       Running   0          73s</pre>
+<p><code>kubectl set image deployment/intro-deploy nginx=nginx:1.15</code> のように <code>kubectl set image</code> でimageを入れかえることでアップデートをすることも可能です。</p>
+<p>Deploymentまでで、だいたいPodの管理については終わりです。</p>
+<p>お掃除しておきましょう。</p>
+<pre>% kubectl delete -f step4/deployment.yaml
+deployment.apps &#34;intro-deploy&#34; deleted</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Service" duration="0">
+        <p>さて、ここまででPodをどうやって一つにまとめて運用するかについてを見てきました。</p>
+<p>Pod上でアプリケーションを動かしていても、それにアクセスできなければ、ユーザーは使えないですね。</p>
+<p>kubernetesの内部的にはPod同士が通信できるようにネットワークができています。</p>
+<p>通信自体は可能なので、自分でPod間のトラフィックを制御するなにかを作って制御することは可能です。</p>
+<p>ですが、そんなことをしなくても、kubernetesがちゃんと用意してくれています。</p>
+<p>それがServiceです。</p>
+<p>Serviceは負荷分散とかいろいろありますが、要はLabelのセレクタを作る仕組みが本質だと思います。</p>
+<p>PodのLabelを指定してひとまとめにして、そのLabelがついているPodに対してトラフィックを流すのがServiceの役割になります。</p>
+<p>このトラフィックを流すという仕組みが負荷分散の仕組みになり、この負荷分散の仕組はkubernetesは複数用意してくれています。</p>
+<p>またトラフィックの制御という観点から、PodのProbeと連携して正常な状態のPodに対してトラフィックを流すという仕組みも備えています。</p>
+<p>では、Serviceを実際に触ってみましょう。</p>
+<h2>ClusterIP typeでのServiceの作成</h2>
+<p>ServiceとDeploymentは密接に関わっていることが多いので、自分の場合は1ファイルにまとめて管理することが多いです。</p>
+<p>まずはClusterIP typeでServiceをつくって試してみましょう。</p>
+<p>ClusterIPはServiceの中では一番プリミティブなServiceといっていいでしょう。</p>
+<p>ClusterIPはクラスタ内の内部IPでServiceを作り、クラスタ内からのみアクセス可能です。</p>
+<p>では試してみましょう。</p>
+<pre># クラスタの確認を忘れずに！
+% kubectx
+% kubectl apply -f step5/service_deployment.yaml
+service/intro-api created
+deployment.apps/intro-deploy created
+% kubectl get pods
+NAME                            READY     STATUS    RESTARTS   AGE
+intro-deploy-78bd57c9c9-hsrsx   1/1       Running   0          4m45s
+intro-deploy-78bd57c9c9-sg9cn   1/1       Running   0          4m45s
+intro-deploy-78bd57c9c9-whzdc   1/1       Running   0          4m45s
+% kubectl get deploy
+NAME           READY     UP-TO-DATE   AVAILABLE   AGE
+intro-deploy   3/3       3            3           4m48s
+% kubectl get service
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+intro-api    ClusterIP   10.104.231.157   &lt;none&gt;        8080/TCP   4m51s
+kubernetes   ClusterIP   10.96.0.1        &lt;none&gt;        443/TCP    23h</pre>
+<p>もちろんこれではクラスタ外からはアクセスできません、、、</p>
+<p>クラスタの中のPodに一つに入ってみて試して見ましょう。</p>
+<aside class="special"><p>Serviceオブジェクトが作られると、kubernetes内部のDNSに{:service name}.{namespace名}.svc.cluster.localのドメインが発行されます。</p>
+</aside>
+<pre>% kubectl exec -it intro-deploy-78bd57c9c9-hsrsx -- /bin/bash
+root@intro-deploy-78bd57c9c9-hsrsx:/# apt-get update
+root@intro-deploy-78bd57c9c9-hsrsx:/# apt-get install -y curl
+root@intro-deploy-78bd57c9c9-hsrsx:/# curl 10.104.231.157:8080 #何回も叩いてみる
+# Serviceオブジェクトが作られると、kubernetes内部のDNSに{:service name}.{namespace名}.svc.cluster.localのドメインが発行される
+root@intro-deploy-78bd57c9c9-hsrsx:/# curl intro-api.default.svc.cluster.local:8080</pre>
+<p>そうするとログがこんな感じででます。</p>
+<p><img style="max-width: 864.00px" src="img/cd22d07ca0d10abb.png"></p>
+<p>セレクタで指定されたPodに分散している様子が見えます。(curlを叩いてるPodにはアクセスは行かない模様)</p>
+<p>作ったServiceは消しておきましょう。</p>
+<pre>% kubectl delete -f step5/service_deployment.yaml</pre>
+<h2>NodePortを使って外部に公開されているServiceを作る</h2>
+<p>NodePortはクラスタ上の<strong>全ての</strong>ノード上の指定したポートに到達したトラフィックをPodに流すことができます。</p>
+<p>なので、ノードのIPアドレスが公開されていれば、クラスタ外からのトラフィックもPodへ流すことができます。</p>
+<p>では早速NodePortのServiceを作ってみましょう。</p>
+<pre># クラスタの確認を忘れずに！
+% kubectx
+% kubectl apply -f step6/service_deployment.yaml
+service/intro-api created
+deployment.apps/intro-deploy created
+% kubectl get pod
+NAME                            READY     STATUS    RESTARTS   AGE
+intro-deploy-78bd57c9c9-gh5jg   1/1       Running   0          46s
+intro-deploy-78bd57c9c9-gngdf   1/1       Running   0          46s
+intro-deploy-78bd57c9c9-qcstn   1/1       Running   0          46s
+% kubectl get deploy
+NAME           READY     UP-TO-DATE   AVAILABLE   AGE
+intro-deploy   3/3       3            3           49s
+% kubectl get service
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+intro-api    NodePort    10.104.75.252   &lt;none&gt;        8080:30080/TCP   53s
+kubernetes   ClusterIP   10.96.0.1       &lt;none&gt;        443/TCP          24h</pre>
+<p>こんな感じで作られるかと思います。</p>
+<p>ではminikubeのクラスタのノードの情報がわかればアクセスできますね！</p>
+<p>最初に書いた通りminikubeはノードが1つなので、ノードのIPアドレスも1つです。</p>
+<p>確認方法は下記コマンドでできます。</p>
+<pre>% minikube ip
+192.168.99.100</pre>
+<p>おおお、これがminikubeではノードのIPアドレスと一致します。</p>
+<p>ではこのIPアドレスに向けてアクセスしてみましょう。</p>
+<p>sternでログを出すの忘れずに！</p>
+<pre>% curl 192.168.99.100:30080</pre>
+<p>sternのログはこんな感じになります！</p>
+<p><img style="max-width: 864.00px" src="img/9ba892d67409977d.png"></p>
+<p>リクエストが来ていることがわかると思います。</p>
+<p>これでServiceに関しては入門としては十分かと思います！</p>
+<p>は作ったオブジェクトを消しておきましょう。</p>
+<pre>% kubectl delete -f step6/service_deployment.yaml 
+service &#34;intro-api&#34; deleted
+deployment.apps &#34;intro-deploy&#34; deleted</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="ServiceとIngress" duration="0">
+        <p>Serviceの役割を整理するとこんな感じです。(Kubernetes完全ガイド p194より)</p>
+<ul>
+<li>ラベルを利用したPodのサービスディスカバリ(Podのまとめ役)</li>
+<li>L4のロードバランシング</li>
+<li>クラスタ内のDNSによる名前解決</li>
+</ul>
+<p>昨今のHTTPサーバーを運用するにはServiceでは不足している部分があります。</p>
+<p>そこでL7ロードバランシングを行うIngressがあります。</p>
+<p>IngressはServiceとも連携して下記のようなことできます(実装次第でいろいろできます)。</p>
+<ul>
+<li>L7ロードバランシング</li>
+<li>HTTPS終端</li>
+<li>パスベースルーティング</li>
+</ul>
+<p>どれを使うべきかは一番の悩みごとだと思います。</p>
+<p><a href="https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-when-should-i-use-what-922f010849e0" target="_blank">https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-when-should-i-use-what-922f010849e0</a></p>
+<p>ServiceのClusterIPとNodePortは前で説明した通りです。</p>
+<p>LoadBalancerは、外部にServiceを公開するためには一般的な方法です。</p>
+<p>LoadBalancerは基本的にはクラウドプロバイダーが提供しているしているロードバランサーが使われます。</p>
+<p>GKEだとTCPのロードバランサーが作成されます。</p>
+<p>L４ロードバランサーなので、フィルターやルーティングなどはないですね。</p>
+<p>さらにServiceごとにロードバランサーができるので、お金かかります。</p>
+<p>IngressはServiceのタイプではないです。</p>
+<p>Ingressは複数のServiceをまとめてルーティングしてくれます。</p>
+<p>GKEのingressはHTTP(S)ロードバランサーを使います。</p>
+<p>このロードバランサーはvhost的な感じで、サブドメインベースのルーティングをしてくれます。</p>
+<p>Ingressは一つのIPで複数のSerivceを公開したりするにはとても便利です。</p>
+<p>他にもSSLの終端処理などのいろいろ便利な機能はクラウドプロバイダーごとに提供されているので、確認して使いましょう。</p>
+<p>今回は入門ということでこれ以上は深掘りしないのですが、ぜひ本などを読んで理解を深めてください。</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="まとめ" duration="0">
+        <p>kubernetesの入門ということで、ざっくりとkubernetesについて紹介してきました。</p>
+<p>kubernetesは強力なツールです。</p>
+<p>これを機会にさらに深掘りをしていってみてください。</p>
+<p>kubernetesを使って本番運用を行うにはまだまだやらなければならないこともあります。</p>
+<p>他にもネタがれば@spring_mtまでお知らせください！</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="参考にすると良い記事・本" duration="0">
+        <h2>本</h2>
+<ul>
+<li><a href="https://www.amazon.co.jp/Kubernetes%E5%AE%8C%E5%85%A8%E3%82%AC%E3%82%A4%E3%83%89-impress-top-gear-%E9%9D%92%E5%B1%B1/dp/4295004804/" target="_blank">Kubernetes完全ガイド</a></li>
+<li>辞書的に使える一家に一冊おいておける本</li>
+<li><a href="https://www.amazon.co.jp/%E3%81%97%E3%81%8F%E3%81%BF%E3%81%8C%E3%82%8F%E3%81%8B%E3%82%8BKubernetes-Azure%E3%81%A7%E5%8B%95%E3%81%8B%E3%81%97%E3%81%AA%E3%81%8C%E3%82%89%E5%AD%A6%E3%81%B6%E3%82%B3%E3%83%B3%E3%82%BB%E3%83%97%E3%83%88%E3%81%A8%E5%AE%9F%E8%B7%B5%E7%9F%A5%E8%AD%98-%E9%98%BF%E4%BD%90-%E5%BF%97%E4%BF%9D/dp/4798157848/" target="_blank">しくみがわかるKubernetes Azureで動かしながら学ぶコンセプトと実践知識</a></li>
+<li>kubernetesを基礎から学べる。見直したけど、コードを追えるほどではなかった。。。</li>
+<li><a href="https://www.amazon.co.jp/Kubernetes%E5%AE%9F%E8%B7%B5%E5%85%A5%E9%96%80-%E3%83%97%E3%83%AD%E3%83%80%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%AC%E3%83%87%E3%82%A3%E3%81%AA%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A-%E3%82%A2%E3%83%97%E3%83%AA%E3%82%B1%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%81%AE%E4%BD%9C%E3%82%8A%E6%96%B9-Software-plus%E3%82%B7%E3%83%AA%E3%83%BC%E3%82%BA/dp/4297104385/" target="_blank">Kubernetes実践入門 プロダクションレディなコンテナ&amp;アプリケーションの作り方</a></li>
+<li>まだ読んでないけど、Z Labの人たちが書いた本なので期待大</li>
+</ul>
+<h2>Web上の記事</h2>
+<p><a href="https://qiita.com/apstndb/items/9d13230c666db80e74d0" target="_blank">GKE/Kubernetes でなぜ Pod と通信できるのか</a></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="完成後の小話" duration="0">
+        <p>2019/03/05より前の話</p>
+<p>多分GCP使っている人がほとんどだと思うので、gcloud経由でインストールしたくなることでしょう。</p>
+<p>gcloud経由でインストールすると、なんと、v1.10.7のkubectlがふってきます。古すぎる。</p>
+<p>というわけで、brew経由でインストールします。(v1.10系を使っててCronJob周りでなにか踏んだ気もするけど、忘れた。。。)</p>
+<p>インストール方法</p>
+<pre>% brew install kubernetes-cli
+# これだとgcloudでもkubectlインストールすると、読み込みのタイミングとあでgcloudのほうが優先されることがある
+% vim ~/.zshrc
+# これを書いておいてもいいかも
+alias kubectl=&#34;/usr/local/Cellar/kubernetes-cli/{バージョン}/bin/kubectl&#34;</pre>
+<p>brewとgcloudの両方でインストールしていると、 </p>
+<pre><code>gcloud components update</code></pre>
+<p> するこんなWarningがでてうざいです。。。</p>
+<pre>WARNING:   There are older versions of Google Cloud Platform tools on your system PATH.
+  Please remove the following to avoid accidentally invoking these old tools:
+
+  /Users/foo/go_appengine/endpointscfg.py
+/Users/foo/go_appengine/dev_appserver.py
+/usr/local/Cellar/kubernetes-cli/1.11.2/bin/kubectl</pre>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', 'UA-49880327-14', 'auto');
+
+    (function() {
+      var gaCodelab = '';
+      if (gaCodelab) {
+        ga('create', gaCodelab, 'auto', {name: 'codelab'});
+      }
+
+      var gaView;
+      var parts = location.search.substring(1).split('&');
+      for (var i = 0; i < parts.length; i++) {
+        var param = parts[i].split('=');
+        if (param[0] === 'viewga') {
+          gaView = param[1];
+          break;
+        }
+      }
+      if (gaView && gaView !== gaCodelab) {
+        ga('create', gaView, 'auto', {name: 'view'});
+      }
+    })();
+  </script>
+
+</body>
+</html>
